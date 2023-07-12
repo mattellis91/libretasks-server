@@ -1,2 +1,2 @@
 # libretasks-server
-server for libretasks (An opensource kanban board solution)
+server for libretasks (A hobby opensource kanban board solution)
