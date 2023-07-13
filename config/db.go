@@ -2,22 +2,19 @@ package config
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	
+	"github.com/mattellis91/libretasks-server/models"
 )
 
-type User struct {
-	ID primitive.ObjectID `bson:"_id"`
-	Name string `bson:"name"`
-}
+var Db *mongo.Database
 
 func InitDb() {
 	if err := godotenv.Load(); err != nil {
@@ -29,7 +26,10 @@ func InitDb() {
 		log.Fatal("You must set your 'MONGODB_URL' environment variable. See\n\t https://www.mongodb.com/docs/drivers/go/current/usage-examples/#environment-variable")
 	}
 
-	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(uri))
+	serverAPI := options.ServerAPI(options.ServerAPIVersion1)
+  	opts := options.Client().ApplyURI(uri).SetServerAPIOptions(serverAPI)
+
+	client, err := mongo.Connect(context.TODO(), opts)
 
 	if err != nil {
 		panic(err)
@@ -41,34 +41,26 @@ func InitDb() {
 		}
 	}()
 
-	db := client.Database("libretasks")
-	coll := db.Collection("user")
+	Db := client.Database("dev")
+	
+	coll := Db.Collection("user")
+	doc := models.User{Username: "test user", Email: "test@email.com"}
 
-	fmt.Println(db.Name())
+	res, err := coll.InsertOne(context.TODO(), doc)
+
+	if err != nil {
+		log.Fatal(err)
+		log.Fatal("Failed to insert")
+	}
+
+	fmt.Printf("Inserted document with _id: %v\n", res.InsertedID)
+
+
+	fmt.Println(Db.Name())
 	fmt.Println(coll.Name())
 
 	count, _ := coll.CountDocuments(context.TODO(), bson.M{})
 
 	fmt.Println(count)
-
-	var result User
-	err = coll.FindOne(context.TODO(), bson.D{{"name", "test"}}).Decode(&result)   //coll.Find(context.TODO(), bson.D{{}}).Decode(&result)
-
-	if err == mongo.ErrNoDocuments {
-		fmt.Printf("No documents were found")
-		return
-	}
-
-	if err != nil {
-		panic(err)
-	}
-
-
-	jsonData, err := json.MarshalIndent(result, "", "	")
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Printf("%s\n", jsonData)
 
 }
