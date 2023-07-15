@@ -8,5 +8,5 @@ type User struct {
 	ID primitive.ObjectID `bson:"_id,omitempty"`
 	Username string `bson:"username,omitempty"`
 	Email string `bson:"email,omitempty"`
-	password string `bson:"password"`
+	Password string `bson:"password,omitempty"`
 }
