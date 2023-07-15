@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"time"
+	"fmt"
 
 	"github.com/mattellis91/libretasks-server/config"
 	"github.com/mattellis91/libretasks-server/models"
@@ -19,14 +20,11 @@ import (
 var userCollection *mongo.Collection = config.GetCollection(config.DB, "user")
 var validate = validator.New()
 
-//TODO: dont return wrapper function inside of methods.
-// instead return the status of the method to the HandleFunc defined in the route.
-// So im able to use method in other contexts other than only when hitting the /user post endpoint for example
-//just extract the user data from the request and pass it into the create user function
-
-func CreateUser() gin.HandlerFunc {
+func CreateUserHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		c.Header("Content-Type", "application/json")
+		
 		var user models.User
 		defer cancel()
 
@@ -39,39 +37,48 @@ func CreateUser() gin.HandlerFunc {
 			return
 		}
 
-		//use the validator library to validate required fields
-		if validationErr := validate.Struct(&user); validationErr != nil {
-			c.JSON(http.StatusBadRequest, responses.UserResponse{
-				Status: http.StatusBadRequest, Message: "error",
-				Data: map[string]interface{}{"data": validationErr.Error()}},
-			)
-			return
-		}
+		newUserResponse := CreateUser(ctx, user)
+		
+		c.JSON(newUserResponse.Status, newUserResponse)
 
-		newUser := models.User{
-			ID:       primitive.NewObjectID(),
-			Username: user.Username,
-			Email:    user.Email,
-		}
-
-		result, err := userCollection.InsertOne(ctx, newUser)
-		if err != nil {
-			c.JSON(
-				http.StatusInternalServerError,
-				responses.UserResponse{
-					Status:  http.StatusInternalServerError,
-					Message: "error",
-					Data:    map[string]interface{}{"data": err.Error()}},
-			)
-			return
-		}
-
-		c.JSON(http.StatusCreated, responses.UserResponse{
-			Status:  http.StatusCreated,
-			Message: "success",
-			Data:    map[string]interface{}{"data": result},
-		})
+		return
+		
 	}
+}
+
+func CreateUser(ctx context.Context, user models.User) responses.UserResponse {
+	fmt.Println("%v", user)
+
+	if validationErr := validate.Struct(&user); validationErr != nil {
+		return responses.UserResponse{
+			Status: http.StatusBadRequest,
+			Message: "Error validating user data",
+			Data: map[string]interface{}{"data": validationErr.Error()},
+		}
+	}
+
+	newUser := models.User{
+		ID:       primitive.NewObjectID(),
+		Username: user.Username,
+		Email:    user.Email,
+	}
+
+	result, err := userCollection.InsertOne(ctx, newUser)
+
+	if err != nil {
+		return responses.UserResponse{
+			Status:  http.StatusInternalServerError,
+			Message: "error",
+			Data:    map[string]interface{}{"data": err.Error()},
+		}
+	}
+
+	return responses.UserResponse {
+		Status:  http.StatusCreated,
+		Message: "success",
+		Data:    map[string]interface{}{"data": result},
+	}
+
 }
 
 func GetAUser() gin.HandlerFunc {
